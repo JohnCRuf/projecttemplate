@@ -1,6 +1,6 @@
 #!/bin/bash
-projectdirectory=/project/jdingel
-projectgroup=pi-jdingel
+projectdirectory=/project/jacruf
+projectgroup=pi-jackruf
 
 #Change directory ownership
 echo "The following directories do not have group ${projectgroup}:"
