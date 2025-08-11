@@ -13,26 +13,34 @@ include ../../generic.make
 	julia $<
 ../output/R_packages.txt: | ../output
 	Rscript packages.R
-../output/python_packages.txt: py_requirements.txt ../output/pyproject | ../output
-	echo "Python Packages  Installed" > $@
+../output/python_packages.txt: py_requirements.txt ../output/pyproject.toml | ../output
+	uv --project ../output sync
+	echo "Python Packages Installed" > $@
+
+../output/fortran_packages.txt: fortran_requirements.txt ../output/fortran_project | ../output
+	fpm --root ../output build
+	echo "Fortran Packages Installed" > $@
 
 
 # Initialization Recipes
-../output/pyproject:
+../output/pyproject.toml:
 	uv init --project ../output --name pyproject --python 3.12
 	echo "Python environment initialized with uv."
-# Simple Julia Project Initialization
+# Julia Project Initialization
 ../output/Manifest.toml ../output/Project.toml &: | ../output
 	julia -e 'import Pkg; \
 		Pkg.activate("../output"); \
 		Pkg.instantiate(); \
 		println("Initialized environment in ../output")'
-# Simple R Project Initialization
+# R Project Initialization
 ../output/renv.lock: | ../output
 	Rscript -e 'if (!"renv" %in% rownames(installed.packages())) install.packages("renv"); if (!file.exists("../output/renv.lock")) renv::init(project="../output", bare=TRUE) else renv::activate(project="../output"); renv::snapshot(project="../output")'
+# Fortran Project Initialization
+../output/fortran_project: | ../output
+	fpm new ../output/fortran_project
 
 # Phony Utilities
-.PHONY: pyinit timeout_check julia_add R_add
+.PHONY: pyinit timeout_check julia_add R_add fpm_add
 
 # BASH TOOLING
 # Quick check for timeout commands
@@ -50,7 +58,10 @@ julia_add:
 		Pkg.activate("../output"); \
 		Pkg.add("$(PKG)"); \
 		Pkg.instantiate()'
-
 R_add:
 	@test -n "$(PKG)" || (echo "Usage: make add PKG=package"; exit 1)
 	@Rscript -e 'if (!"renv" %in% rownames(installed.packages())) install.packages("renv"); renv::activate("../output/"); renv::install("$(PKG)"); renv::snapshot()'
+fpm_add:
+	@test -n "$(PKG)" || { echo "Usage: make fpm_add PKG='name = { git = \"url\" }'"; exit 1; }
+	echo "$(PKG)" >> "../output/fortran_project/fpm.toml"
+	fpm ../output/fortran_project build
