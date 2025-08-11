@@ -1,4 +1,4 @@
-# Project template
+# Project Template Description
 
 This repository contains a project template.
 
