@@ -1,9 +1,9 @@
 `##This file defines shell functions that
-# 1. Improve Makefiles' readability by compartmentalizing all the "if" statement around SLURM vs local executables.
+# 1. Improve Makefiles' readability by compartmentalizing all the "if" statement around virtual vs local executables.
 # 2. Cause Stata to report an error to Make when the Stata log file end at an error.`;
 
 stata_with_flag() {
-	stata_pc_and_slurm $@;
+	stata_pc_and_virtual $@;
 	if [ "$1" == "--no-job-name" ]; then
 		shift;
 	fi ;
@@ -15,7 +15,7 @@ stata_with_flag() {
 	fi
 } ;
 
-stata_pc_and_slurm() {
+stata_pc_and_virtual() {
 	if command -v sbatch > /dev/null ; then
 		command1="module load stata/18";
 		if [ "$1" == "--no-job-name" ]; then
@@ -41,7 +41,7 @@ stata_pc_and_slurm() {
 } ; 
 
 R_with_flag() {
-	R_pc_and_slurm $@;
+	R_pc_and_virtual $@;
 	if [ "$1" == "--no-job-name" ]; then
 		shift;
 	fi ;
@@ -53,7 +53,7 @@ R_with_flag() {
 	fi
 } ;
 
-R_pc_and_slurm() {
+R_pc_and_virtual() {
 	if command -v sbatch > /dev/null ; then
 		command1="echo R is not a module on Columbia HPC";
 		if [ "$1" == "--no-job-name" ]; then
@@ -74,11 +74,11 @@ R_pc_and_slurm() {
             shift;
         fi;
         print_info R $@;
-        Rscript $@;
+        Rscript -e 'renv::load("../../setup_environment/output")' $@;
 	fi 
 } ; 
 
-julia_pc_and_slurm() {
+julia_pc_and_virtual() {
 	if command -v sbatch > /dev/null ; then 
 		command1="module load julia/1.10.2";
 		if [ "$1" == "--no-job-name" ]; then
@@ -99,7 +99,32 @@ julia_pc_and_slurm() {
             shift;
         fi;
         print_info Julia $@;
-        julia $@;
+        julia --project="../../setup_environment/output/" $@;
+	fi 
+} ;
+
+python_pc_and_virtual() {
+	if command -v sbatch > /dev/null ; then 
+		command1="module load python/3.10.2";
+		if [ "$1" == "--no-job-name" ]; then
+			shift;
+			command2="python $@";
+			print_info Python $@;
+			sbatch -W --export=command1="$command1",command2="$command2" run.sbatch;
+		else
+			command2="python $@";
+			jobname1=$(echo "${1%.*}_" | sed 's/\.\.\/input\///');
+			jobname2=$(echo ${@:2} | sed -E 's/\.\.\/(temp|input|code|output).//g' | sed -E 's/( |\/)/_/g' | cut -c '1-200');
+			full_jobname=$(echo "$jobname1$jobname2" | sed -E 's/_{2,}/_/g' | sed -E 's/_$//g');
+			print_info Python $@;
+			sbatch -W --export=command1="$command1",command2="$command2" --job-name="$full_jobname" run.sbatch;
+		fi;
+	else 
+		if [ "$1" == "--no-job-name" ]; then
+			shift;
+		fi;
+		print_info Python $@;
+		uv --project ../output run python $@;
 	fi 
 } ;
 
@@ -107,7 +132,7 @@ clean_task() {
 	find ${1} -type l -delete;
 	PARENT_DIR=${1%/code};
 	rm -f ${1}/*.log;
-	rm -rf ${PARENT_DIR}/input ${PARENT_DIR}/output ${1}/slurmlogs ${1}/temp;
+	rm -rf ${PARENT_DIR}/input ${PARENT_DIR}/output ${1}/virtuallogs ${1}/temp;
 } ;
 
 print_info() {
